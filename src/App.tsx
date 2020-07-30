@@ -1,12 +1,8 @@
 import React, {EffectCallback} from 'react';
-import logo from './logo.svg';
 import './App.css';
 
-// TS2322: Type 'MutableRefObject<string | null>' is not assignable to type 'string | ((instance: HTMLCanvasElement | null) => void) | RefObject<HTMLCanvasElement> | null | undefined'.
-//   Type 'MutableRefObject<string | null>' is not assignable to type 'RefObject<HTMLCanvasElement>'.
-//     Types of property 'current' are incompatible.
-//       Type 'string | null' is not assignable to type 'HTMLCanvasElement | null'.
-//         Type 'string' is not assignable to type 'HTMLCanvasElement | null'.
+const maxSeeLength = 750
+const carSeeLinesPerSide = 5
 
 class Vector {
   x: number
@@ -15,6 +11,10 @@ class Vector {
   constructor(x: number, y: number) {
     this.x = x
     this.y = y
+  }
+
+  clone() {
+    return new Vector(this.x, this.y)
   }
 
   add(other: Vector) {
@@ -126,7 +126,7 @@ class NeuralNet {
   layerSizes: number[]
 
   constructor(layerSizes: number[]) {
-    console.log('NeuralNet constructor')
+    // console.log('NeuralNet constructor')
 
     this.weights = []
     this.layerValues = []
@@ -137,7 +137,7 @@ class NeuralNet {
     }
 
     for (let i = 0; i < layerSizes.length - 1; i++) {
-      const newWeightLayer = new Array(layerSizes[i] * (layerSizes[i + 1] + 1))
+      const newWeightLayer = new Array((layerSizes[i] + 1) * (layerSizes[i + 1] + 0))
 
       for (let j = 0; j < newWeightLayer.length; j++) {
         newWeightLayer[j] = Math.random() * 2 - 1 // -1 - 1
@@ -149,6 +149,30 @@ class NeuralNet {
     //
     // console.log('weihts', this.weights)
     // console.log('layerValues', this.layerValues)
+  }
+
+  cloneMutated() {
+    const newNeuralNet = new NeuralNet(this.layerSizes)
+
+    // // Sometimes completely random
+    // if (Math.random() < 0.1) {
+    //   return newNeuralNet
+    // }
+
+    for (let weightLayerIndex = 0; weightLayerIndex < this.weights.length; weightLayerIndex++) {
+      const thisWeightLayer = this.weights[weightLayerIndex]
+      const newWeightLayer = newNeuralNet.weights[weightLayerIndex]
+
+      for (let weightCellIndex = 0; weightCellIndex < thisWeightLayer.length; weightCellIndex++) {
+        let newWeight = thisWeightLayer[weightCellIndex]
+        if (Math.random() < 0.25) {
+          newWeight += (Math.random() - 0.5) * 0.25
+        }
+        newWeightLayer[weightCellIndex] = newWeight
+      }
+    }
+
+    return newNeuralNet
   }
 
   setFirstLayer(values: number[]) {
@@ -165,26 +189,44 @@ class NeuralNet {
       const fromLayerIndex = toLayerIndex - 1
       const weightArray = this.weights[fromLayerIndex]
 
+      // console.log('step')
+      // console.log(fromLayerIndex, toLayerIndex)
+
       const fromSize = this.layerSizes[fromLayerIndex]
       const toSize = this.layerSizes[toLayerIndex]
+
+      // console.log(fromSize, toSize)
 
       for (let toCellIndex = 0; toCellIndex < toSize; toCellIndex++) {
         this.layerValues[toLayerIndex][toCellIndex] = 0;
 
+        // console.log('1', this.layerValues[toLayerIndex])
+
         for (let fromCellIndex = 0; fromCellIndex < fromSize; fromCellIndex++) {
           const fromInputValue = this.layerValues[fromLayerIndex][fromCellIndex]
 
-          const weight = weightArray[(fromSize+ 1) * toCellIndex + fromCellIndex]
+          const weight = weightArray[(fromSize + 1) * toCellIndex + fromCellIndex]
           this.layerValues[toLayerIndex][toCellIndex] += weight * fromInputValue
         }
 
+        // console.log('2', this.layerValues[toLayerIndex])
+
         // Bias
-        const weight = weightArray[(fromSize + 1) * toCellIndex + fromSize]
+        const weight = weightArray[(fromSize + 1) * toCellIndex + fromSize - 1]
+        // console.log('weight', weight)
+        if (weight === undefined) {
+          debugger
+        }
         this.layerValues[toLayerIndex][toCellIndex] += weight * 1
+
+        // console.log('3', this.layerValues[toLayerIndex])
 
         this.layerValues[toLayerIndex][toCellIndex] = sigmoid(this.layerValues[toLayerIndex][toCellIndex]);
       }
+
+      // console.log('4', this.layerValues[toLayerIndex])
     }
+    // throw Error('JOU')
   }
 
   getLastLayer() {
@@ -194,30 +236,36 @@ class NeuralNet {
   }
 }
 
+const carStartPos = new Vector(500, 400)
+
 class Car {
   position: Vector
   angle: number
   speed: number
   neuralNet: NeuralNet
+  alive: boolean
+  diedOnFrame: undefined | number
 
   constructor(neuralNet: NeuralNet) {
-    this.position = new Vector(500, 400)
+    this.position = carStartPos.clone()
     this.angle = 0
     this.speed = 0
     this.neuralNet = neuralNet
-    // this.neuralNet = new NeuralNet([6, 3, 2])
+    this.alive = true
+    this.diedOnFrame = undefined
   }
 
-  afterStep() {
+  doStep() {
     const directionVector = new Vector(0, -1)
       .rotate(this.angle)
       .multiply(this.speed)
 
-    let newCar = new Car(this.neuralNet)
-    newCar.position = this.position.add(directionVector)
-    newCar.angle = this.angle
-    newCar.speed = this.speed
+    this.position = this.position.add(directionVector)
+  }
 
+  mutateNew() {
+    const newNeuralNet = this.neuralNet.cloneMutated()
+    const newCar = new Car(newNeuralNet)
     return newCar
   }
 
@@ -235,10 +283,12 @@ class Car {
 
     const correctedCamera = camera.multiply(-1).add(new Vector(500, 500))
 
-    drawLine(ctx, topLeft.add(correctedCamera), topRight.add(correctedCamera))
-    drawLine(ctx, topRight.add(correctedCamera), bottomRight.add(correctedCamera))
-    drawLine(ctx, bottomRight.add(correctedCamera), bottomLeft.add(correctedCamera))
-    drawLine(ctx, bottomLeft.add(correctedCamera), topLeft.add(correctedCamera))
+    const color = this.alive ? 'black' : 'red'
+
+    drawLine(ctx, topLeft.add(correctedCamera), topRight.add(correctedCamera), color)
+    drawLine(ctx, topRight.add(correctedCamera), bottomRight.add(correctedCamera), color)
+    drawLine(ctx, bottomRight.add(correctedCamera), bottomLeft.add(correctedCamera), color)
+    drawLine(ctx, bottomLeft.add(correctedCamera), topLeft.add(correctedCamera), color)
   }
 
   checkCollision(line: Line) {
@@ -255,14 +305,12 @@ class Car {
   }
 
   see(ctx: CanvasRenderingContext2D, camera: Vector, borders: Line[], maxDistance: number, draw: boolean = true): number[] {
-    const linesPerSide = 3
+    let distances: number[] = new Array(carSeeLinesPerSide * 2)
 
-    let distances: number[] = new Array(linesPerSide * 2)
-
-    for (let angleIndex = 0; angleIndex < linesPerSide * 2; angleIndex += 1) {
+    for (let angleIndex = 0; angleIndex < carSeeLinesPerSide * 2; angleIndex += 1) {
       distances[angleIndex] = maxDistance
 
-      const angle = this.angle + 0.3 * (angleIndex + 0.5 - linesPerSide)
+      const angle = this.angle + Math.PI * (angleIndex + 0.5 - carSeeLinesPerSide) / carSeeLinesPerSide / 3
 
       const correctedCamera = camera.multiply(-1).add(new Vector(500, 500))
 
@@ -311,7 +359,7 @@ class Car {
 function generateRoute() {
   let parts: Line[] = []
 
-  let centerPoint = new Vector(500, 500)
+  let centerPoint = carStartPos.clone().add(new Vector(0, 11))
 
   let zoomLevel = 1
 
@@ -337,6 +385,13 @@ function generateRoute() {
 
     centerPoint = nextCenter
 
+    if (i === 0) {
+      parts = [
+        ...parts,
+        new Line(leftBottom, rightBottom)
+      ]
+    }
+
     parts = [
       ...parts,
       new Line(leftBottom, leftTop),
@@ -359,142 +414,185 @@ function generateRoute() {
   return parts
 }
 
-const initialNeuralNet = new NeuralNet([6, 3, 2])
-// initialNeuralNet.setFirstLayer([1, 1, 1, 1, 1, 1])
-// initialNeuralNet.forwardPropagate()
-// initialNeuralNet.getLastLayer()
+interface IGameProps {
+  setIteration: React.Dispatch<React.SetStateAction<number>>
+  setFps: React.Dispatch<React.SetStateAction<number>>
+  extraFast: boolean
+}
 
-// interface IGameProps {
-//
-// }
-//
-// const Game = ((): IGameProps) => {
-// }
+const Game = ({setIteration, extraFast, setFps}: IGameProps) => {
 
-const App = () => {
   const canvasRef = React.useRef<null | HTMLCanvasElement>(null)
-  const [directions, setDirections] = React.useState({
-    forward: false,
-    backwards: false,
-    left: false,
-    right: false,
-  })
+
   const [camera, setCamera] = React.useState<Vector>(new Vector(0, 0))
-  const [car, setCar] = React.useState(new Car(initialNeuralNet))
-  const [borders, setBorders] = React.useState(generateRoute())
+  const [intervalFunc, setIntervalFunc] = React.useState<() => void>(() => {
+    return () => {}
+  })
 
   React.useEffect(() => {
-    if (canvasRef === null) {
+    if (canvasRef === null || canvasRef.current === null) {
       return
     }
 
-    const interval = setInterval(() => {
-      setDirections((currentDirections) => {
-        setCar((currentCar) => {
-          const newCar = currentCar.afterStep()
+    const canvas: HTMLCanvasElement = canvasRef.current!
+    const ctx = canvas.getContext("2d")!;
 
-          setCamera((currentCamera) => {
-            const canvas: HTMLCanvasElement = canvasRef.current!
-            const ctx = canvas.getContext("2d")!;
+    const carCount = 30
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let cars = [...Array(carCount * 10)].map(() => {
+      return new Car(new NeuralNet([carSeeLinesPerSide * 2 + 1, 10, 5, 2]))
+    })
+    let borders = generateRoute()
+    let loopIndex = 0;
+    let iterationIndex = 1;
 
-            // if (currentDirections.left) {
-            //   currentCar.angle -= 0.01
-            // }
-            // if (currentDirections.right) {
-            //   currentCar.angle += 0.01
-            // }
-            // if (currentDirections.forward) {
-            //   currentCar.speed += 0.05
-            // }
-            // if (currentDirections.backwards) {
-            //   currentCar.speed -= 0.05
-            // }
+    // let lastTime = Date.now()
+    const maxFpsTimeListLen = 5
+    let latestTimes = [Date.now()]
 
-            const maxSeeLength = 500
-            const seeDistances = newCar.see(ctx, currentCamera, borders, maxSeeLength)
-            newCar.neuralNet.setFirstLayer(seeDistances.map(distance => distance / maxSeeLength))
-            newCar.neuralNet.forwardPropagate()
-            const nnOutputs = newCar.neuralNet.getLastLayer()
+    setIteration(iterationIndex)
 
-            currentCar.speed = nnOutputs[0]
-            currentCar.angle += (nnOutputs[1] - 0.5)
+    const intervalCallback = () => {
+      loopIndex += 1;
 
-            currentCar.speed *= 0.98
+      if (loopIndex % 10 === 0) {
+        setFps(Math.round(1 / (Date.now() - latestTimes[latestTimes.length - 1]) * 1000 * maxFpsTimeListLen))
+      }
+      latestTimes = [Date.now(), ...latestTimes].slice(0, maxFpsTimeListLen)
 
-            newCar.draw(ctx, currentCamera)
-            setCar(newCar)
+      setCamera((currentCamera) => {
 
-            for (var i = 0; i < borders.length; i++) {
-              borders[i].draw(ctx, currentCamera)
-            }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if (borders.some(border => {
-              return currentCar.checkCollision(border)
-            })) {
-              // console.log('collision')
-            }
+        for (var i = 0; i < borders.length; i++) {
+          borders[i].draw(ctx, currentCamera)
+        }
 
-            return newCar.position
-          })
-          return newCar
+        let allDead = true
+        for (let carIndex = 0; carIndex < cars.length; carIndex++) {
+          let car = cars[carIndex]
+
+          car.draw(ctx, currentCamera)
+
+          if (borders.some(border => {
+            return car.checkCollision(border)
+          })) {
+            car.alive = false
+            continue
+          }
+          allDead = false
+
+          const seeDistances = car.see(ctx, currentCamera, borders, maxSeeLength, false)
+          console.log('speed is', car.speed)
+          car.neuralNet.setFirstLayer([...seeDistances.map(distance => distance / maxSeeLength), car.speed])
+          car.neuralNet.forwardPropagate()
+          const nnOutputs = car.neuralNet.getLastLayer()
+
+          // car.speed += (nnOutputs[0] - 0.5) * 0.2
+          car.speed += (nnOutputs[0]) * 0.1
+          car.angle += (nnOutputs[1] - 0.5) * 0.2
+
+          car.speed *= 0.96
+
+          car.doStep()
+        }
+
+        const sortedCars = cars.sort((a, b) => {
+          return (
+            a.position.add(carStartPos.multiply(-1)).abs() >
+            b.position.add(carStartPos.multiply(-1)).abs()
+              ? -1 : 1
+          )
+          // return (
+          //   a.position.add(carStartPos.multiply(-1)).abs() / Math.sqrt(10 + (a.diedOnFrame || loopIndex)) >
+          //   b.position.add(carStartPos.multiply(-1)).abs() / Math.sqrt(10 + (b.diedOnFrame || loopIndex))
+          //     ? -1 : 1
+          // )
         })
-        return currentDirections
-      })
-    }, 1000 / 60)
 
-    return () => {
-      clearInterval(interval)
+        if ((loopIndex > 60 * 10 && iterationIndex < 10) || allDead || (loopIndex > 60 * 30)) {
+          loopIndex = 0
+          iterationIndex += 1;
+          setIteration(iterationIndex)
+
+          cars = sortedCars.slice(0, carCount / 2).map(car => {
+            car.position = carStartPos.clone()
+            car.angle = 0
+            car.alive = true
+            car.diedOnFrame = undefined
+            return car
+          })
+          const mutatedCars = cars.map(oldCar => oldCar.mutateNew())
+
+          cars = cars.concat(mutatedCars)
+
+          borders = generateRoute()
+        }
+
+        const sortedAliveCars = sortedCars.filter(car => car.alive)
+        if (sortedAliveCars) {
+          sortedAliveCars[0].see(ctx, currentCamera, borders, maxSeeLength, true)
+          return sortedAliveCars[0].position
+        }
+
+        return cars[0].position
+      })
     }
+    // console.log('setIntervalFunc', intervalCallback)
+    setIntervalFunc(() => {return intervalCallback})
+    // return intervalCallback
   }, [canvasRef])
 
-  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'ArrowUp') {
-      setDirections({...directions, forward: true})
+  React.useEffect(() => {
+    if (!extraFast) {
+      const interval = setInterval(intervalFunc, 1000 / 60)
+      return () => {
+        clearInterval(interval)
+      }
+    } else {
+      let timeout: undefined | number = undefined
+      const func = () => {
+        intervalFunc()
+        timeout = window.setTimeout(func, 0)
+        return timeout
+      }
+      func()
+      return () => {
+        if (timeout !== undefined) {
+          clearTimeout(timeout)
+        }
+      }
     }
-    if (event.key === 'ArrowDown') {
-      setDirections({...directions, backwards: true})
-    }
-    if (event.key === 'ArrowLeft') {
-      setDirections({...directions, left: true})
-    }
-    if (event.key === 'ArrowRight') {
-      setDirections({...directions, right: true})
-    }
-  }
-
-  const onKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'ArrowUp') {
-      setDirections({...directions, forward: false})
-    }
-    if (event.key === 'ArrowDown') {
-      setDirections({...directions, backwards: false})
-    }
-    if (event.key === 'ArrowLeft') {
-      setDirections({...directions, left: false})
-    }
-    if (event.key === 'ArrowRight') {
-      setDirections({...directions, right: false})
-    }
-  }
+  }, [extraFast, intervalFunc])
 
   return (
-    <div
+    <canvas
       tabIndex={-1}
-      className="App"
-      onKeyDown={onKeyDown}
-      onKeyUp={onKeyUp}
-    >
-      <div className={'main-container'}>
-        <canvas
-          ref={canvasRef}
-          width={1000}
-          height={1000}
-        ></canvas>
-      </div>
-    </div>
+      ref={canvasRef}
+      width={1000}
+      height={1000}>
+    </canvas>
   );
+}
+
+const App = () => {
+  const [iteration, setIteration] = React.useState(0)
+  const [fps, setFps] = React.useState(0)
+  const [extraFast, setExtraFast] = React.useState(false)
+  return <div className={'game-container'}>
+    <h1>Iteration {iteration} (FPS:{fps})</h1>
+    <Game
+      setIteration={setIteration}
+      extraFast={extraFast}
+      setFps={setFps}
+    />
+    <div>
+      <button onClick={() => {
+        setExtraFast(!extraFast)
+      }}>Extra fast ({extraFast ? 'true' : 'false'})
+      </button>
+    </div>
+  </div>
 }
 
 export default App;
