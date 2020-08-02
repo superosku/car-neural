@@ -1,10 +1,16 @@
 import React, {EffectCallback} from 'react';
 import './App.css';
-import {Camera, Vector} from './Vector'
-import {Line} from './Line'
-import {NeuralNet} from "./NeuralNet";
-import {canvasHeight, canvasWidth, carNNLayerSizes, carSeeLinesPerSide, carStartPos, maxSeeLength} from "./Constants";
-import {Car} from "./Car";
+import {Camera, Vector} from './code/Vector'
+import {Line} from './code/Line'
+import {NeuralNet} from "./code/NeuralNet";
+import {
+  canvasHeight,
+  canvasWidth,
+  carNNLayerSizes,
+  carStartPos,
+  maxSeeLength
+} from "./code/Constants";
+import {Car} from "./code/Car";
 
 function generateRoute() {
   let parts: Line[] = []
