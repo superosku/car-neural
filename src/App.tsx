@@ -198,7 +198,7 @@ interface IGameProps {
 const Game = ({setIteration, extraFast, setFps, setDraw, setLogBestWeights}: IGameProps) => {
   const canvasRef = React.useRef<null | HTMLCanvasElement>(null)
 
-  const [camera, setCamera] = React.useState<Camera>(new Camera(0, 0))
+  // const [camera, setCamera] = React.useState<Camera>(new Camera(0, 0))
   const [intervalFunc, setIntervalFunc] = React.useState<() => void>(() => {
     return () => {
     }
@@ -227,107 +227,116 @@ const Game = ({setIteration, extraFast, setFps, setDraw, setLogBestWeights}: IGa
     let borders = generateRoute()
 
     // let lastTime = Date.now()
-    const maxFpsTimeListLen = 5
+    const maxFpsTimeListLen = 60
     let latestTimes = [Date.now()]
 
     setIteration(iterationIndex)
 
+    let draw = true;
+    let logBestWeights = false;
+    let camera = new Camera(0, 0)
+
+    setInterval(() => {
+      setLogBestWeights((newLogBestWeights) => {
+        setDraw((newDraw) => {
+          draw = newDraw
+          logBestWeights = newLogBestWeights
+          setFps(Math.round(1 / (Date.now() - latestTimes[latestTimes.length - 1]) * 1000 * maxFpsTimeListLen))
+          return newDraw
+        })
+        return newLogBestWeights
+      })
+    }, 250)
+
     const intervalCallback = () => {
       loopIndex += 1;
-
-      if (loopIndex % 10 === 0) {
-        setFps(Math.round(1 / (Date.now() - latestTimes[latestTimes.length - 1]) * 1000 * maxFpsTimeListLen))
-      }
       latestTimes = [Date.now(), ...latestTimes].slice(0, maxFpsTimeListLen)
 
-      setLogBestWeights((logBestWeights) => {
-        setDraw((draw) => {
-          setCamera((currentCamera: Camera) => {
-            if (draw) {
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-              for (var i = 0; i < borders.length; i++) {
-                borders[i].draw(ctx, currentCamera)
-              }
-            }
+      if (draw) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (var i = 0; i < borders.length; i++) {
+          borders[i].draw(ctx, camera)
+        }
+      }
 
-            let allDead = true
-            for (let carIndex = 0; carIndex < cars.length; carIndex++) {
-              let car = cars[carIndex]
+      let allDead = true
+      for (let carIndex = 0; carIndex < cars.length; carIndex++) {
+        let car = cars[carIndex]
 
-              if (draw) {
-                car.draw(ctx, currentCamera, iterationIndex)
-              }
+        if (draw) {
+          car.draw(ctx, camera, iterationIndex)
+        }
 
-              if (borders.some(border => {
-                return car.checkCollision(border)
-              })) {
-                car.alive = false
-                continue
-              }
-              allDead = false
+        for (
+          let i = Math.max(0, car.closestBorderIndex - 2);
+          i < Math.min(borders.length, car.closestBorderIndex + 2);
+          i++
+        ) {
+          const border = borders[i]
+          if (car.checkCollision(border)) {
+            car.alive = false
+          }
+        }
+        if (car.alive) {
+          allDead = false
+        } else {
+          continue
+        }
 
-              const seeDistances = car.see(ctx, currentCamera, borders, maxSeeLength, false)
-              car.neuralNet.setFirstLayer(seeDistances.map(distance => distance / maxSeeLength))
-              car.neuralNet.forwardPropagate()
-              const nnOutputs = car.neuralNet.getLastLayer()
+        const seeDistances = car.see(ctx, camera, borders, maxSeeLength, false)
+        car.neuralNet.setFirstLayer(seeDistances.map(distance => distance / maxSeeLength))
+        car.neuralNet.forwardPropagate()
+        const nnOutputs = car.neuralNet.getLastLayer()
 
-              car.speed = (nnOutputs[0]) * 3
-              car.angle += (nnOutputs[1] - 0.5) * 0.2 / 8
+        car.speed = (nnOutputs[0]) * 3
+        car.angle += (nnOutputs[1] - 0.5) * 0.2 / 8
 
-              car.doStep()
-            }
+        car.doStep()
+      }
 
-            const sortedCars = cars.sort((a, b) => {
-              // return a.score > b.score ? -1 : 1
-              return a.getDistance() > b.getDistance() ? -1 : 1
-            })
-
-            if ((loopIndex > 60 * 1 && iterationIndex < 5) || allDead || (loopIndex > 60 * 30)) {
-              loopIndex = 0
-              iterationIndex += 1;
-              setIteration(iterationIndex)
-
-              const carDistances = cars.map(car => car.getDistance())
-              // const carDistances = cars.map(car => car.score)
-              const avgDistance = carDistances.reduce((p, c) => p + c, 0) / carDistances.length
-              historicalAvgDistances = [...historicalAvgDistances, avgDistance]
-
-              if (logBestWeights) {
-                console.log('avgDistance', avgDistance)
-                console.log('best car')
-                console.log('weights', JSON.stringify(sortedCars[0].neuralNet.layerSizes))
-                console.log('weights', JSON.stringify(sortedCars[0].neuralNet.weights))
-              }
-
-              const newStartAngle = 0
-              // const newStartAngle = (Math.random() - 0.5) * Math.PI / 1
-              // const newStartAngle = (Math.PI * Math.random() / 16) + (Math.PI / 16) * (Math.random() < 0.5 ? 4 : -5)
-              cars = sortedCars.slice(0, carCount / 2).map(car => {
-                car.position = new Vector(carStartPos.x, carStartPos.y)
-                car.angle = newStartAngle
-                car.alive = true
-                car.diedOnFrame = undefined
-                return car
-              })
-              const mutatedCars = cars.map(oldCar => oldCar.mutateNew(iterationIndex, newStartAngle))
-
-              cars = cars.concat(mutatedCars)
-
-              borders = generateRoute()
-            }
-
-            const sortedAliveCars = sortedCars.filter(car => car.alive)
-            if (draw) {
-              sortedAliveCars[0].see(ctx, currentCamera, borders, maxSeeLength, true)
-              drawNN(ctx, sortedAliveCars[0].neuralNet)
-              drawDistances(ctx, historicalAvgDistances)
-            }
-            return new Camera(sortedCars[0].position.x, sortedCars[0].position.y)
-          })
-          return draw
-        })
-        return logBestWeights
+      const sortedCars = cars.sort((a, b) => {
+        // return a.score > b.score ? -1 : 1
+        return a.getDistance() > b.getDistance() ? -1 : 1
       })
+
+      if ((loopIndex > 60 * 1 && iterationIndex < 5) || allDead || (loopIndex > 60 * 30)) {
+        loopIndex = 0
+        iterationIndex += 1;
+        setIteration(iterationIndex)
+
+        const carDistances = cars.map(car => car.getDistance())
+        const avgDistance = carDistances.reduce((p, c) => p + c, 0) / carDistances.length
+        historicalAvgDistances = [...historicalAvgDistances, avgDistance]
+
+        if (logBestWeights) {
+          console.log('avgDistance', avgDistance)
+          console.log('best car')
+          console.log('weights', JSON.stringify(sortedCars[0].neuralNet.layerSizes))
+          console.log('weights', JSON.stringify(sortedCars[0].neuralNet.weights))
+        }
+
+        const newStartAngle = 0
+        cars = sortedCars.slice(0, carCount / 2).map(car => {
+          car.position = new Vector(carStartPos.x, carStartPos.y)
+          car.angle = newStartAngle
+          car.alive = true
+          car.diedOnFrame = undefined
+          return car
+        })
+        const mutatedCars = cars.map(oldCar => oldCar.mutateNew(iterationIndex, newStartAngle))
+
+        cars = cars.concat(mutatedCars)
+
+        borders = generateRoute()
+      }
+
+      const sortedAliveCars = sortedCars.filter(car => car.alive)
+      if (draw) {
+        sortedAliveCars[0].see(ctx, camera, borders, maxSeeLength, true)
+        drawNN(ctx, sortedAliveCars[0].neuralNet)
+        drawDistances(ctx, historicalAvgDistances)
+      }
+      camera = new Camera(sortedCars[0].position.x, sortedCars[0].position.y)
     }
     setIntervalFunc(() => {
       return intervalCallback
@@ -344,6 +353,14 @@ const Game = ({setIteration, extraFast, setFps, setDraw, setLogBestWeights}: IGa
       }
     } else {
       const interval = setInterval(() => {
+        intervalFunc()
+        intervalFunc()
+        intervalFunc()
+        intervalFunc()
+        intervalFunc()
+        intervalFunc()
+        intervalFunc()
+        intervalFunc()
         intervalFunc()
         intervalFunc()
         intervalFunc()

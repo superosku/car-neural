@@ -12,7 +12,12 @@ export class Car {
   alive: boolean
   diedOnFrame: undefined | number
   firstIteration: number
-  score: number
+  closestBorderIndex: number
+
+  topLeft: Vector
+  topRight: Vector
+  bottomLeft: Vector
+  bottomRight: Vector
 
   constructor(neuralNet: NeuralNet, currentIteration: number) {
     this.position = new Vector(carStartPos.x, carStartPos.y)
@@ -22,7 +27,21 @@ export class Car {
     this.alive = true
     this.diedOnFrame = undefined
     this.firstIteration = currentIteration
-    this.score = 0
+    this.closestBorderIndex = 0
+
+    this.topLeft = new Vector(0, 0)
+    this.topRight = new Vector(0, 0)
+    this.bottomLeft = new Vector(0, 0)
+    this.bottomRight = new Vector(0, 0)
+    this.updateCornerPositions()
+  }
+
+  updateCornerPositions() {
+    const [topLeft, topRight, bottomLeft, bottomRight] = this.corners()
+    this.topLeft = topLeft
+    this.topRight = topRight
+    this.bottomLeft = bottomLeft
+    this.bottomRight = bottomRight
   }
 
   doStep() {
@@ -31,9 +50,11 @@ export class Car {
       .multiply(this.speed)
 
     this.position = this.position.add(directionVector)
+
+    this.updateCornerPositions()
   }
 
-  mutateNew(currentIteration: number, newStartAngle:number) {
+  mutateNew(currentIteration: number, newStartAngle: number) {
     const newNeuralNet = this.neuralNet.cloneMutated()
     const newCar = new Car(newNeuralNet, currentIteration)
     newCar.angle = newStartAngle
@@ -54,7 +75,7 @@ export class Car {
   }
 
   draw(ctx: CanvasRenderingContext2D, camera: Camera, currentIteration: number) {
-    const [topLeft, topRight, bottomLeft, bottomRight] = this.corners()
+    // const [topLeft, topRight, bottomLeft, bottomRight] = this.corners()
 
     // const correctedCamera = camera.multiply(-1).add(new Vector(500, 500))
 
@@ -67,23 +88,21 @@ export class Car {
     ctx.lineWidth = 1
     ctx.fillStyle = fillColor
     ctx.beginPath()
-    ctx.lineTo(camera.cameraCorrect(topLeft).x, camera.cameraCorrect(topLeft).y)
-    ctx.lineTo(camera.cameraCorrect(topRight).x, camera.cameraCorrect(topRight).y)
-    ctx.lineTo(camera.cameraCorrect(bottomRight).x, camera.cameraCorrect(bottomRight).y)
-    ctx.lineTo(camera.cameraCorrect(bottomLeft).x, camera.cameraCorrect(bottomLeft).y)
+    ctx.lineTo(camera.cameraCorrect(this.topLeft).x, camera.cameraCorrect(this.topLeft).y)
+    ctx.lineTo(camera.cameraCorrect(this.topRight).x, camera.cameraCorrect(this.topRight).y)
+    ctx.lineTo(camera.cameraCorrect(this.bottomRight).x, camera.cameraCorrect(this.bottomRight).y)
+    ctx.lineTo(camera.cameraCorrect(this.bottomLeft).x, camera.cameraCorrect(this.bottomLeft).y)
     ctx.closePath()
     ctx.fill();
     ctx.stroke();
   }
 
   checkCollision(line: Line) {
-    const [topLeft, topRight, bottomLeft, bottomRight] = this.corners()
-
     return [
-      new Line(topLeft, topRight),
-      new Line(topRight, bottomRight),
-      new Line(bottomRight, bottomLeft),
-      new Line(bottomLeft, topLeft),
+      new Line(this.topLeft, this.topRight),
+      new Line(this.topRight, this.bottomRight),
+      new Line(this.bottomRight, this.bottomLeft),
+      new Line(this.bottomLeft, this.topLeft),
     ].some((otherLine) => {
       return line.intersects(otherLine)
     })
@@ -95,16 +114,12 @@ export class Car {
     // Find closest borders
     const distancesToBorders = borders.map(border => this.position.add(border.p1.multiply(-1)).abs())
     const minIndex = distancesToBorders.indexOf(Math.min(...distancesToBorders))
+    this.closestBorderIndex = minIndex
 
-    this.score = minIndex
-
-    // debugger;
     for (let angleIndex = 0; angleIndex < carSeeLinesPerSide * 2; angleIndex += 1) {
       distances[angleIndex] = maxDistance
 
       const angle = this.angle + Math.PI * (angleIndex + 0.5 - carSeeLinesPerSide) / carSeeLinesPerSide / 2.0
-
-      // const correctedCamera = camera.multiply(-1).add(new Vector(500, 500))
 
       const lineStartPoint = this.position
       const lineEndPoint = this.position.add(new Vector(0, -1).rotate(angle).multiply(maxDistance))
@@ -120,10 +135,8 @@ export class Car {
       }
 
       for (
-        // let i = 0;
-        // i < borders.length;
-        let i = Math.max(0, minIndex - 5);
-        i < Math.min(borders.length, minIndex + 25);
+        let i = Math.max(0, this.closestBorderIndex - 5);
+        i < Math.min(borders.length, this.closestBorderIndex + 25);
         i++
       ) {
 
