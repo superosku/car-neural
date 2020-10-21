@@ -217,7 +217,7 @@ const Game = ({setIteration, extraFast, setFps, setDraw, setLogBestWeights}: IGa
 
     let historicalAvgDistances: number[] = []
 
-    const carCount = 30
+    const carCount = 50
 
     let cars = [...Array(carCount * 2)].map(() => {
       return new Car(new NeuralNet(
@@ -316,16 +316,43 @@ const Game = ({setIteration, extraFast, setFps, setDraw, setLogBestWeights}: IGa
         }
 
         const newStartAngle = 0
-        cars = sortedCars.slice(0, carCount / 2).map(car => {
-          car.position = new Vector(carStartPos.x, carStartPos.y)
-          car.angle = newStartAngle
-          car.alive = true
-          car.diedOnFrame = undefined
-          return car
-        })
-        const mutatedCars = cars.map(oldCar => oldCar.mutateNew(iterationIndex, newStartAngle))
 
-        cars = cars.concat(mutatedCars)
+        let bestWeightChanges: number[][] = []
+        for (let layerIndex = 0; layerIndex < sortedCars[0].neuralNet.weightChanges.length; layerIndex ++) {
+          let layerInfo = []
+          for (let index = 0; index < sortedCars[0].neuralNet.weightChanges[layerIndex].length; index ++) {
+            let value = 0
+            for (let carIndex = 0; carIndex < 15; carIndex ++) {
+              value += sortedCars[carIndex].neuralNet.weightChanges[layerIndex][index]
+            }
+            value /= 15
+            value *= 2
+            layerInfo.push(value)
+          }
+          bestWeightChanges.push(layerInfo)
+        }
+
+        let bestCar = sortedCars[0]
+        bestCar.position = new Vector(carStartPos.x, carStartPos.y)
+        bestCar.angle = newStartAngle
+        bestCar.alive = true
+        bestCar.diedOnFrame = undefined
+
+        cars = [bestCar]
+        for (let i = 0; i < 29; i ++) {
+          cars.push(bestCar.mutateNew(iterationIndex, newStartAngle, bestWeightChanges))
+        }
+
+        // cars = sortedCars.slice(0, carCount / 2).map(car => {
+        //   car.position = new Vector(carStartPos.x, carStartPos.y)
+        //   car.angle = newStartAngle
+        //   car.alive = true
+        //   car.diedOnFrame = undefined
+        //   return car
+        // })
+        // const mutatedCars = cars.map(oldCar => oldCar.mutateNew(iterationIndex, newStartAngle))
+        //
+        // cars = cars.concat(mutatedCars)
 
         borders = generateRoute()
       }

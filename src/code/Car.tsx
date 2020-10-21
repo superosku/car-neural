@@ -54,8 +54,9 @@ export class Car {
     this.updateCornerPositions()
   }
 
-  mutateNew(currentIteration: number, newStartAngle: number) {
-    const newNeuralNet = this.neuralNet.cloneMutated()
+  mutateNew(currentIteration: number, newStartAngle: number, directions: number[][]) {
+    // const newNeuralNet = this.neuralNet.cloneMutated()
+    const newNeuralNet = this.neuralNet.cloneMutated(directions)
     const newCar = new Car(newNeuralNet, currentIteration)
     newCar.angle = newStartAngle
     return newCar

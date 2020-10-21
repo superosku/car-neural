@@ -6,12 +6,14 @@ function sigmoid(value: number) {
 
 export class NeuralNet {
   weights: number[][]
+  weightChanges: number[][]
   layerValues: number[][]
   layerSizes: number[]
 
   constructor(layerSizes: number[]) {
     // console.log('NeuralNet constructor')
 
+    this.weightChanges = []
     this.weights = []
     this.layerValues = []
     this.layerSizes = layerSizes
@@ -24,13 +26,16 @@ export class NeuralNet {
 
     for (let i = 0; i < layerSizes.length - 1; i++) {
       const newWeightLayer = new Array((layerSizes[i] + 1) * (layerSizes[i + 1] + 0))
+      const newWeightChangeLayer = new Array((layerSizes[i] + 1) * (layerSizes[i + 1] + 0))
 
       for (let j = 0; j < newWeightLayer.length; j++) {
         newWeightLayer[j] = Math.random() * 2 - 1 // -1 - 1
+        newWeightChangeLayer[j] = 0
         // newWeightLayer[j] = Math.random() * 20 - 10 // -10 - 10
       }
 
       this.weights.push(newWeightLayer)
+      this.weightChanges.push(newWeightChangeLayer)
     }
 
     // this.weights = pretrainedWeights
@@ -39,7 +44,7 @@ export class NeuralNet {
     // console.log('layerValues', this.layerValues)
   }
 
-  cloneMutated() {
+  cloneMutated(directions: number[][]) {
     const newNeuralNet = new NeuralNet(this.layerSizes)
 
     // // Sometimes completely random
@@ -50,13 +55,20 @@ export class NeuralNet {
     for (let weightLayerIndex = 0; weightLayerIndex < this.weights.length; weightLayerIndex++) {
       const thisWeightLayer = this.weights[weightLayerIndex]
       const newWeightLayer = newNeuralNet.weights[weightLayerIndex]
+      const newChangeWeightLayer = newNeuralNet.weightChanges[weightLayerIndex]
 
       for (let weightCellIndex = 0; weightCellIndex < thisWeightLayer.length; weightCellIndex++) {
-        let newWeight = thisWeightLayer[weightCellIndex]
+        let weightChange = 0;
         if (Math.random() < 0.25) {
-          newWeight += (Math.random() - 0.5) * 0.1
+          weightChange = (Math.random() - 0.5) * 0.1
         }
+        let newWeight = (
+          thisWeightLayer[weightCellIndex] +
+          directions[weightLayerIndex][weightCellIndex] +
+          weightChange
+        )
         newWeightLayer[weightCellIndex] = newWeight
+        newChangeWeightLayer[weightCellIndex] = weightChange
       }
     }
 
