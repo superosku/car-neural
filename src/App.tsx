@@ -123,14 +123,27 @@ function drawDistances(ctx: CanvasRenderingContext2D, distances: number[]) {
     } else {
       ctx.lineTo(x, y)
     }
-  }
-  ctx.stroke()
 
+    if (i == distances.length - avgOver - 1) {
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.lineWidth = 1
+      ctx.font = "14px Arial";
+      ctx.fillStyle = 'black';
+      ctx.fillText(Math.floor(avgDistances - 10000).toString(), rectPosX + rectWidth + 5, y + 7);
+      ctx.fill()
+    }
+  }
+
+  ctx.stroke()
   ctx.beginPath()
   ctx.lineWidth = 1
   ctx.font = "14px Arial";
   ctx.fillStyle = 'black';
   ctx.fillText("Avg distance vs iteration", rectPosX, rectPosY - 5);
+
+  ctx.fillText(Math.floor(maxDist - 10000).toString(), rectPosX + rectWidth + 5, rectPosY + 7);
+  ctx.fillText(Math.floor(0).toString(), rectPosX + rectWidth + 5, rectPosY + rectHeight + 7);
   ctx.fill()
 }
 
