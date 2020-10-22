@@ -39,22 +39,20 @@ export class NeuralNet {
     // console.log('layerValues', this.layerValues)
   }
 
-  cloneMutated() {
+  cloneMutated(oldNet: NeuralNet) {
     const newNeuralNet = new NeuralNet(this.layerSizes)
-
-    // // Sometimes completely random
-    // if (Math.random() < 0.1) {
-    //   return newNeuralNet
-    // }
 
     for (let weightLayerIndex = 0; weightLayerIndex < this.weights.length; weightLayerIndex++) {
       const thisWeightLayer = this.weights[weightLayerIndex]
+      const oldWeightLayer = oldNet.weights[weightLayerIndex]
       const newWeightLayer = newNeuralNet.weights[weightLayerIndex]
 
       for (let weightCellIndex = 0; weightCellIndex < thisWeightLayer.length; weightCellIndex++) {
         let newWeight = thisWeightLayer[weightCellIndex]
+        const oldWeight = oldWeightLayer[weightCellIndex]
+        const diff = newWeight - oldWeight;
         if (Math.random() < 0.25) {
-          newWeight += (Math.random() - 0.5) * 0.1
+          newWeight += ((Math.random() - 0.5) * 0.1) + (diff * 10)
         }
         newWeightLayer[weightCellIndex] = newWeight
       }

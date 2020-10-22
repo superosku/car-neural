@@ -9,6 +9,7 @@ export class Car {
   angle: number
   speed: number
   neuralNet: NeuralNet
+  oldNet: NeuralNet
   alive: boolean
   diedOnFrame: undefined | number
   firstIteration: number
@@ -19,11 +20,12 @@ export class Car {
   bottomLeft: Vector
   bottomRight: Vector
 
-  constructor(neuralNet: NeuralNet, currentIteration: number) {
+  constructor(neuralNet: NeuralNet, currentIteration: number, oldNet?: NeuralNet) {
     this.position = new Vector(carStartPos.x, carStartPos.y)
     this.angle = 0
     this.speed = 0
     this.neuralNet = neuralNet
+    this.oldNet = oldNet || neuralNet
     this.alive = true
     this.diedOnFrame = undefined
     this.firstIteration = currentIteration
@@ -55,8 +57,8 @@ export class Car {
   }
 
   mutateNew(currentIteration: number, newStartAngle: number) {
-    const newNeuralNet = this.neuralNet.cloneMutated()
-    const newCar = new Car(newNeuralNet, currentIteration)
+    const newNeuralNet = this.neuralNet.cloneMutated(this.oldNet)
+    const newCar = new Car(newNeuralNet, currentIteration, this.neuralNet)
     newCar.angle = newStartAngle
     return newCar
   }
